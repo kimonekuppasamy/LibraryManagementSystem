@@ -38,5 +38,5 @@ Ensures the app is ready to use without manual data entry.
 ## Misses
 - Testing each rule properly
 - Adding more exception handling
-- First time using Radzen, so some features may be missing or not fully utilized.
+- First time using Radzen, so some features may be missing or not fully utilized. Used AI for Syntax around DataGrids and general functionality
 - Code cleanup from the template when project was created
