@@ -1,0 +1,218 @@
+﻿@page "/loans"
+@using Microsoft.EntityFrameworkCore
+@inject LibraryManagementSystemContext Db
+
+<h3>Loans</h3>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div style="color:red; margin-bottom:10px">@errorMessage</div>
+}
+
+<RadzenDataGrid @ref="grid" Data="@loans" TItem="Loan" AllowFiltering="true" AllowSorting="true" AllowPaging="true" PageSize="10">
+    <Columns>
+        <RadzenDataGridColumn TItem="Loan" Property="Book.Title" Title="Book" />
+        <RadzenDataGridColumn TItem="Loan" Property="Lender.FullName" Title="Lender" />
+        <RadzenDataGridColumn TItem="Loan" Property="LoanDate" Title="Loan Date" FormatString="{0:yyyy-MM-dd}" />
+        <RadzenDataGridColumn TItem="Loan" Property="DueDate" Title="Due Date" FormatString="{0:yyyy-MM-dd}" />
+        <RadzenDataGridColumn TItem="Loan" Property="ReturnDate" Title="Return Date" FormatString="{0:yyyy-MM-dd}" />
+
+        <RadzenDataGridColumn TItem="Loan" Title="Status">
+            <Template Context="loan">
+                @{
+                    var status = loan.ReturnDate != null ? "Returned" :
+                    loan.DueDate < DateTime.Now ? "Overdue" : "Active";
+                }
+                <span style="color:@(status == "Overdue" ? "red" : "black")">@status</span>
+            </Template>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn TItem="Loan" Title="Actions" Width="200px">
+            <Template Context="loan">
+
+                <RadzenButton Text="Edit" Size="ButtonSize.Small" Click="@(() => EditLoan(loan))" Style="margin-right:5px" />
+                <RadzenButton Text="Delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Click="@(() => DeleteLoan(loan))" />
+
+            </Template>
+        </RadzenDataGridColumn>
+    </Columns>
+</RadzenDataGrid>
+
+<RadzenButton Text="Add Loan" Click="@AddLoan" Style="margin-top:20px" />
+
+@if (editingLoan != null)
+{
+    <RadzenCard Style="margin-top:20px; padding:10px; max-width:400px">
+        <h4>@(isNewLoan ? "Add Loan" : "Edit Loan")</h4>
+        <EditForm Model="@editingLoan" OnValidSubmit="@SaveLoan">
+            <div class="mb-2">
+                <label>Book</label>
+                <RadzenDropDown Data="@books" TextProperty="Title" ValueProperty="Id" @bind-Value="editingLoan.BookId" Style="width:100%" />
+            </div>
+            <div class="mb-2">
+                <label>Lender</label>
+                <RadzenDropDown Data="@lenders" TextProperty="FullName" ValueProperty="Id" @bind-Value="editingLoan.LenderId" Style="width:100%" />
+            </div>
+            <div class="mb-2">
+                <label>Loan Date</label>
+                <RadzenDatePicker @bind-Value="editingLoan.LoanDate" Style="width:100%" />
+            </div>
+            <div class="mb-2">
+                <label>Due Date</label>
+                <RadzenDatePicker @bind-Value="editingLoan.DueDate" Style="width:100%" />
+            </div>
+            <div class="mb-2">
+                <label>Return Date</label>
+                <RadzenDatePicker @bind-Value="editingLoan.ReturnDate" Style="width:100%" />
+            </div>
+            <RadzenButton Text="Save" ButtonType="ButtonType.Submit" Style="margin-right:5px" />
+            <RadzenButton Text="Cancel" Click="@CancelEdit" ButtonStyle="ButtonStyle.Secondary" />
+        </EditForm>
+    </RadzenCard>
+}
+
+@code {
+    private RadzenDataGrid<Loan>? grid;
+    private List<Loan> loans = new();
+    private List<Book> books = new();
+    private List<Lender> lenders = new();
+
+    private Loan? editingLoan;
+    private bool isNewLoan = false;
+    private string? errorMessage;
+
+    protected override void OnInitialized()
+    {
+        books = Db.Books.ToList();
+        lenders = Db.Lenders.ToList();
+        loans = Db.Loans.Include(l => l.Book).Include(l => l.Lender).ToList();
+    }
+
+    void AddLoan()
+    {
+        editingLoan = new Loan
+        {
+            Id = Guid.NewGuid(),
+            LoanDate = DateTime.Now,
+            DueDate = DateTime.Now.AddDays(14)
+        };
+        isNewLoan = true;
+        errorMessage = null;
+    }
+
+    void EditLoan(Loan loan)
+    {
+        editingLoan = Db.Loans.First(l => l.Id == loan.Id);
+        isNewLoan = false;
+        errorMessage = null;
+    }
+
+    void CancelEdit()
+    {
+        editingLoan = null;
+        errorMessage = null;
+    }
+
+    async Task SaveLoan()
+    {
+        if (editingLoan == null) return;
+
+        var book = Db.Books.FirstOrDefault(b => b.Id == editingLoan.BookId);
+        if (book == null)
+        {
+            errorMessage = "Book not found.";
+            return;
+        }
+
+        if (isNewLoan && book.CopiesAvailable <= 0)
+        {
+            errorMessage = "This book has no available copies.";
+            return;
+        }
+
+        bool duplicate = Db.Loans.Any(l =>
+            l.LenderId == editingLoan.LenderId &&
+            l.BookId == editingLoan.BookId &&
+            l.ReturnDate == null &&
+            (isNewLoan || l.Id != editingLoan.Id));
+
+        if (duplicate)
+        {
+            errorMessage = "This lender already has an active loan for this book.";
+            return;
+        }
+
+        int activeLoans = Db.Loans.Count(l => l.LenderId == editingLoan.LenderId && l.ReturnDate == null);
+        if (isNewLoan && activeLoans >= 5)
+        {
+            errorMessage = "This lender cannot have more than 5 active loans.";
+            return;
+        }
+
+        bool hasOverdue = Db.Loans.Any(l => l.LenderId == editingLoan.LenderId && l.ReturnDate == null && l.DueDate < DateTime.Now);
+        if (isNewLoan && hasOverdue)
+        {
+            errorMessage = "This lender has overdue books and cannot loan new books.";
+            return;
+        }
+
+        
+        if (isNewLoan)
+        {
+            editingLoan.LoanDate = DateTime.Now;
+            editingLoan.DueDate = editingLoan.LoanDate.AddDays(14);
+            book.CopiesAvailable--;
+            Db.Books.Update(book);
+            Db.Loans.Add(editingLoan);
+        }
+        else
+        {
+           
+            if (editingLoan.ReturnDate != null)
+            {
+                book.CopiesAvailable++;
+                Db.Books.Update(book);
+            }
+            else
+            {
+                book.CopiesAvailable--;
+                Db.Books.Update(book);
+            }
+            Db.Loans.Update(editingLoan);
+        }
+
+        await Db.SaveChangesAsync();
+
+        loans = Db.Loans.Include(l => l.Book).Include(l => l.Lender).ToList();
+        books = Db.Books.ToList();
+
+        editingLoan = null;
+        errorMessage = null;
+
+        if (grid != null)
+        {
+            await grid.Reload();
+        }
+    }
+
+    async Task DeleteLoan(Loan loan)
+    {
+        var book = Db.Books.FirstOrDefault(b => b.Id == loan.BookId);
+        if (book != null && loan.ReturnDate == null)
+        {
+            book.CopiesAvailable++;
+            Db.Books.Update(book);
+        }
+
+        Db.Loans.Remove(loan);
+        await Db.SaveChangesAsync();
+
+        loans = Db.Loans.Include(l => l.Book).Include(l => l.Lender).ToList();
+        books = Db.Books.ToList();
+
+        if (grid != null)
+        {
+            await grid.Reload();
+        }
+    }
+}

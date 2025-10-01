@@ -1,0 +1,90 @@
+﻿@page "/lenders"
+@inject LibraryManagementSystemContext Db
+
+<h3>Lenders</h3>
+
+<RadzenDataGrid @ref="grid" Data="@lenders" TItem="Lender" AllowFiltering="true" AllowSorting="true" AllowPaging="true" PageSize="10">
+    <Columns>
+        <RadzenDataGridColumn TItem="Lender" Property="FullName" Title="Full Name" />
+        <RadzenDataGridColumn TItem="Lender" Property="Email" Title="Email" />
+
+        <RadzenDataGridColumn TItem="Lender" Title="Actions" Width="200px">
+            <Template Context="lender">
+                <RadzenButton Text="Edit" Size="ButtonSize.Small" Click="@(() => EditLender(lender))" Style="margin-right:5px" />
+                <RadzenButton Text="Delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Click="@(() => DeleteLender(lender))" />
+            </Template>
+        </RadzenDataGridColumn>
+    </Columns>
+</RadzenDataGrid>
+
+<RadzenButton Text="Add Lender" Click="@AddLender" Style="margin-top:20px" />
+
+@if (editingLender != null)
+{
+    <RadzenCard Style="margin-top:20px; padding:10px; max-width:400px">
+        <h4>@(isNewLender ? "Add Lender" : "Edit Lender")</h4>
+        <EditForm Model="@editingLender" OnValidSubmit="@SaveLender">
+            <div class="mb-2">
+                <label>Full Name</label>
+                <RadzenTextBox @bind-Value="editingLender.FullName" Style="width:100%" />
+            </div>
+            <div class="mb-2">
+                <label>Email</label>
+                <RadzenTextBox @bind-Value="editingLender.Email" Style="width:100%" />
+            </div>
+            <RadzenButton Text="Save" ButtonType="ButtonType.Submit" Style="margin-right:5px" />
+            <RadzenButton Text="Cancel" Click="@CancelEdit" ButtonStyle="ButtonStyle.Secondary" />
+        </EditForm>
+    </RadzenCard>
+}
+
+@code {
+    private RadzenDataGrid<Lender>? grid;
+    private List<Lender> lenders = new();
+    private Lender? editingLender;
+    private bool isNewLender = false;
+
+    protected override void OnInitialized()
+    {
+        lenders = Db.Lenders.ToList();
+    }
+
+    void AddLender()
+    {
+        editingLender = new Lender { Id = Guid.NewGuid() };
+        isNewLender = true;
+    }
+
+    void EditLender(Lender lender)
+    {
+        editingLender = Db.Lenders.First(l => l.Id == lender.Id);
+        isNewLender = false;
+    }
+
+    void CancelEdit()
+    {
+        editingLender = null;
+    }
+
+    async Task SaveLender()
+    {
+        if (isNewLender)
+        {
+            Db.Lenders.Add(editingLender);
+        }
+
+        await Db.SaveChangesAsync();
+        lenders = Db.Lenders.ToList();
+        editingLender = null;
+
+        if (grid != null)
+            await grid.Reload();
+    }
+
+    async Task DeleteLender(Lender lender)
+    {
+        Db.Lenders.Remove(lender);
+        await Db.SaveChangesAsync();
+        lenders = Db.Lenders.ToList();
+    }
+}

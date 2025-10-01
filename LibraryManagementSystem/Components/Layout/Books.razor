@@ -1,0 +1,147 @@
+﻿@page "/books"
+@inject LibraryManagementSystemContext Db
+
+<h3>Books</h3>
+
+<RadzenDataGrid @ref="grid" Data="@books" TItem="Book" AllowFiltering="true" AllowSorting="true" AllowPaging="true" PageSize="10">
+    <Columns>
+        <RadzenDataGridColumn TItem="Book" Property="Id" Title="Id" />
+        <RadzenDataGridColumn TItem="Book" Property="ISBN" Title="ISBN" />
+        <RadzenDataGridColumn TItem="Book" Property="Title" Title="Title" />
+        <RadzenDataGridColumn TItem="Book" Property="Author" Title="Author" />
+        <RadzenDataGridColumn TItem="Book" Property="PublishedYear" Title="Published Year" />
+        <RadzenDataGridColumn TItem="Book" Property="TotalCopies" Title="Total Copies" />
+        <RadzenDataGridColumn TItem="Book" Property="CopiesAvailable" Title="Copies Available" />
+
+        <RadzenDataGridColumn TItem="Book" Title="Actions" Width="200px">
+            <Template Context="book">
+                    <RadzenButton Text="Edit" Size="ButtonSize.Small" Click="@(() => EditBook(book))" Style="margin-right:5px" />
+                    <RadzenButton Text="Delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Click="@(() => DeleteBook(book))" />
+            </Template>
+        </RadzenDataGridColumn>
+    </Columns>
+</RadzenDataGrid>
+
+<RadzenButton Text="Add Book" Click="@AddBook" Style="margin-top:20px" />
+
+@if (editingBook != null)
+{
+    <RadzenCard Style="margin-top:20px; padding:10px; max-width:400px">
+        <h4>@(isNewBook ? "Add Book" : "Edit Book")</h4>
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div style="color:red; margin-bottom:10px">@errorMessage</div>
+        }
+        <EditForm Model="@editingBook" OnValidSubmit="@SaveBook">
+            <div class="mb-2">
+                <label>ISBN</label>
+                <RadzenTextBox @bind-Value="editingBook.ISBN" Style="width:100%" />
+            </div>
+            <div class="mb-2">
+                <label>Title</label>
+                <RadzenTextBox @bind-Value="editingBook.Title" Style="width:100%" />
+            </div>
+            <div class="mb-2">
+                <label>Author</label>
+                <RadzenTextBox @bind-Value="editingBook.Author" Style="width:100%" />
+            </div>
+            <div class="mb-2">
+                <label>Published Year</label>
+                <RadzenNumeric @bind-Value="editingBook.PublishedYear" Style="width:100%" />
+            </div>
+            <div class="mb-2">
+                <label>Total Copies</label>
+                <RadzenNumeric @bind-Value="editingBook.TotalCopies" Style="width:100%" />
+            </div>
+            <div class="mb-2">
+                <label>Copies Available</label>
+                <RadzenNumeric @bind-Value="editingBook.CopiesAvailable" Style="width:100%" />
+            </div>
+            <RadzenButton Text="Save" ButtonType="ButtonType.Submit" Style="margin-right:5px" />
+            <RadzenButton Text="Cancel" Click="@CancelEdit" ButtonStyle="ButtonStyle.Secondary" />
+        </EditForm>
+    </RadzenCard>
+}
+
+@code {
+    private RadzenDataGrid<Book>? grid;
+    private List<Book> books = new();
+    private Book? editingBook;
+    private bool isNewBook = false;
+    private string? errorMessage;
+
+    protected override void OnInitialized()
+    {
+        books = Db.Books.ToList();
+    }
+
+    void AddBook()
+    {
+        editingBook = new Book();
+        isNewBook = true;
+        errorMessage = null;
+    }
+
+    void EditBook(Book book)
+    {  
+        editingBook = Db.Books.First(b => b.Id == book.Id);
+        isNewBook = false;
+        errorMessage = null;
+    }
+
+    void CancelEdit()
+    {
+        editingBook = null;
+        errorMessage = null;
+    }
+
+    async Task SaveBook()
+    {
+        if (editingBook == null) return;
+
+       
+
+        try
+        {
+            if (isNewBook)
+            {
+                if (Db.Books.Any(b => b.ISBN == editingBook.ISBN && (!isNewBook || b.Id != editingBook.Id)))
+                {
+                    errorMessage = "ISBN must be unique.";
+                    return;
+                }
+                Db.Books.Add(editingBook);
+            }
+
+            await Db.SaveChangesAsync();
+
+            books = Db.Books.ToList();
+            editingBook = null;
+            errorMessage = null;
+
+            if (grid != null)
+                await grid.Reload();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    async Task DeleteBook(Book book)
+    {
+        try
+        {
+            Db.Books.Remove(book);
+            await Db.SaveChangesAsync();
+
+            books = Db.Books.ToList();
+            if (grid != null)
+                await grid.Reload();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+}
