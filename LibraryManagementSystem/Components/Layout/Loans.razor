@@ -136,12 +136,15 @@
             l.ReturnDate == null &&
             (isNewLoan || l.Id != editingLoan.Id));
 
+
+        //rule 6 --> Prevent duplicate active loans per lender/book
         if (duplicate)
         {
             errorMessage = "This lender already has an active loan for this book.";
             return;
         }
 
+        //rule 7: A lender cannot have more than 5 active loans at a time
         int activeLoans = Db.Loans.Count(l => l.LenderId == editingLoan.LenderId && l.ReturnDate == null);
         if (isNewLoan && activeLoans >= 5)
         {
@@ -149,6 +152,7 @@
             return;
         }
 
+        // rule 8: Overdue books block loans for new books
         bool hasOverdue = Db.Loans.Any(l => l.LenderId == editingLoan.LenderId && l.ReturnDate == null && l.DueDate < DateTime.Now);
         if (isNewLoan && hasOverdue)
         {
@@ -156,7 +160,9 @@
             return;
         }
 
-        
+        // rule 1 -> make the default due date to be 14 days from the loan date
+        // rule 2 -> can’t loan if CopiesAvailable == 0
+
         if (isNewLoan)
         {
             editingLoan.LoanDate = DateTime.Now;
@@ -170,11 +176,15 @@
            
             if (editingLoan.ReturnDate != null)
             {
+                // rule 4 --> On return: increment CopiesAvailable
+                // rule 5 --> set ReturnDate and increment CopiesAvailable - done by tracking changes to the loan
                 book.CopiesAvailable++;
                 Db.Books.Update(book);
             }
             else
             {
+                // rule 3 --> On loan: decrement CopiesAvailable
+
                 book.CopiesAvailable--;
                 Db.Books.Update(book);
             }

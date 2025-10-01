@@ -58,7 +58,7 @@ public static class DbInitializer
             context.Lenders.AddRange(lenders);
         }
 
-        // Seed Loans (optional)
+        // Seed Loans
         if (!context.Loans.Any())
         {
             var firstBook = context.Books.FirstOrDefault();
@@ -80,7 +80,6 @@ public static class DbInitializer
 
                 context.Loans.AddRange(loans);
 
-                // Decrement available copies
                 firstBook.CopiesAvailable--;
                 context.Books.Update(firstBook);
             }
