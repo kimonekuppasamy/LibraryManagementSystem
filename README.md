@@ -39,3 +39,4 @@ Ensures the app is ready to use without manual data entry.
 - Testing each rule properly
 - Adding more exception handling
 - First time using Radzen, so some features may be missing or not fully utilized.
+- Code cleanup from the template when project was created
